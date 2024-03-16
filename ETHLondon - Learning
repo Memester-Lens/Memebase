@@ -1,0 +1,109 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+contract Counter {
+    uint public count = 0;
+    address public owner;
+    IERC20 public degenToken;
+
+    // Keep a list of addresses that have clicked the button
+    address[] public clickers;
+    // Ensure an address cannot click more than once
+    mapping(address => bool) public hasClicked;
+
+    constructor(address _tokenAddress) {
+        owner = msg.sender;
+        degenToken = IERC20(_tokenAddress);
+    }
+
+    // Function to get the current count
+    function getCount() public view returns (uint) {
+        return count;
+    }
+
+    // Function to increment the count
+    function incrementCount() public {
+        require(!hasClicked[msg.sender], "Already clicked");
+        count += 1;
+        clickers.push(msg.sender);
+        hasClicked[msg.sender] = true;
+
+        // Check if count is 1000 and distribute tokens if true
+        if(count == 1000) {
+            distributeTokens();
+        }
+    }
+
+    // Distribute tokens to all clickers
+    function distributeTokens() private {
+        uint256 amount = 100 * 10**18; // Example token amount, adjust as needed
+        for(uint i = 0; i < clickers.length; i++) {
+            degenToken.transfer(clickers[i], amount);
+        }
+        // Reset the counter and clickers for next round
+        count = 0;
+        delete clickers;
+    }
+
+    // Ensure only the owner can call this function
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not the owner");
+        _;
+    }
+
+    // Function to withdraw tokens (for owner)
+    function withdrawTokens(address _to, uint _amount) public onlyOwner {
+        degenToken.transfer(_to, _amount);
+    }
+}
+
+import React, { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
+
+function App() {
+  const [count, setCount] = useState(null);
+  const [signer, setSigner] = useState(null);
+
+  // Initialize ethers with Metamask
+  useEffect(() => {
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    setSigner(provider.getSigner());
+  }, []);
+
+  // Function to connect wallet
+  async function connectWallet() {
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+  }
+
+  // Function to get the current count from the contract
+  async function getCount() {
+    const contract = new ethers.Contract('Your_Contract_Address', ['function getCount() view returns (uint)'], signer);
+    setCount(await contract.getCount());
+  }
+
+  // Function to increment the counter
+  async function incrementCount() {
+    const contract = new ethers.Contract('Your_Contract_Address', ['function incrementCount()'], signer);
+    await contract.incrementCount();
+    getCount(); // Refresh the count after incrementing
+  }
+
+  // Connect wallet and get count on load
+  useEffect(() => {
+    if (window.ethereum) {
+      connectWallet();
+      getCount();
+    }
+  }, [signer]);
+
+  return (
+    <div>
+      <h1>Counter: {count}</h1>
+      <button onClick={incrementCount}>Increment Counter</button>
+    </div>
+  );
+}
+
+export default App;
